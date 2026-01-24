@@ -210,7 +210,7 @@ function App() {
 
         {/* Favorites Section */}
         {showFavorites && (
-          <Box sx={{ mb: 4, minHeight: favorites.length === 0 ? 'calc(100vh - 230px)' : 'auto', display: 'flex', flexDirection: 'column' }}>
+          <Box sx={{ mb: 4, minHeight: 'calc(100vh - 230px)', display: 'flex', flexDirection: 'column' }}>
             <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
               ❤️ My Favorites ({favorites.length})
             </Typography>

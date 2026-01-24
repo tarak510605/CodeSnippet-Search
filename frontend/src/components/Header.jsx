@@ -114,7 +114,7 @@ function Header({ onShowFavorites, showingFavorites }) {
             <IconButton
               size="small"
               sx={{ color: 'text.secondary' }}
-              href="https://github.com"
+              href="https://github.com/tarak510605/CodeSnippet-Search.git"
               target="_blank"
             >
               <GitHubIcon />
