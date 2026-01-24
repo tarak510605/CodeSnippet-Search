@@ -28,6 +28,7 @@ import {
   Clear as ClearIcon,
   FilterList as FilterIcon,
   AutoAwesome as AiIcon,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 
 // Supported programming languages
@@ -193,46 +194,52 @@ function SearchBar({ onSearch, onClearSearch, loading = false, isSearching = fal
         <Box sx={{ mt: 3, pt: 3, borderTop: '1px solid', borderColor: 'divider' }}>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
             {/* Language Filter */}
-            <FormControl size="small" sx={{ minWidth: 180 }}>
-              <InputLabel>Language</InputLabel>
-              <Select
-                value={filters.language}
-                label="Language"
-                onChange={(e) => handleFilterChange('language', e.target.value)}
-              >
-                {LANGUAGES.map((lang) => (
-                  <MenuItem key={lang.value} value={lang.value}>
-                    {lang.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Tooltip title="Filter search results by programming language" arrow placement="top">
+              <FormControl size="small" sx={{ minWidth: 180 }}>
+                <InputLabel>Language</InputLabel>
+                <Select
+                  value={filters.language}
+                  label="Language"
+                  onChange={(e) => handleFilterChange('language', e.target.value)}
+                >
+                  {LANGUAGES.map((lang) => (
+                    <MenuItem key={lang.value} value={lang.value}>
+                      {lang.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Tooltip>
 
             {/* Sort By */}
-            <FormControl size="small" sx={{ minWidth: 180 }}>
-              <InputLabel>Sort By</InputLabel>
-              <Select
-                value={filters.sortBy}
-                label="Sort By"
-                onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-              >
-                {SORT_OPTIONS.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    {option.label}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <Tooltip title="Sort search results by relevance, rating, or favorites" arrow placement="top">
+              <FormControl size="small" sx={{ minWidth: 180 }}>
+                <InputLabel>Sort By</InputLabel>
+                <Select
+                  value={filters.sortBy}
+                  label="Sort By"
+                  onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+                >
+                  {SORT_OPTIONS.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Tooltip>
 
             {/* AI Toggle */}
-            <Chip
-              icon={<AiIcon />}
-              label="AI Suggestions"
-              onClick={() => handleFilterChange('includeAI', !filters.includeAI)}
-              color={filters.includeAI ? 'primary' : 'default'}
-              variant={filters.includeAI ? 'filled' : 'outlined'}
-              sx={{ cursor: 'pointer' }}
-            />
+            <Tooltip title="Get AI-powered suggestions and tips with your search results" arrow placement="top">
+              <Chip
+                icon={<AiIcon />}
+                label="AI Suggestions"
+                onClick={() => handleFilterChange('includeAI', !filters.includeAI)}
+                color={filters.includeAI ? 'primary' : 'default'}
+                variant={filters.includeAI ? 'filled' : 'outlined'}
+                sx={{ cursor: 'pointer' }}
+              />
+            </Tooltip>
           </Box>
 
           {/* Active Filters Display */}
@@ -255,6 +262,16 @@ function SearchBar({ onSearch, onClearSearch, loading = false, isSearching = fal
                   onDelete={() => handleFilterChange('sortBy', 'score')}
                 />
               )}
+            </Box>
+          )}
+
+          {/* Helper hint when filters selected but no query */}
+          {(filters.language || filters.includeAI) && !query.trim() && (
+            <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <InfoIcon fontSize="small" color="info" />
+              <Typography variant="body2" color="text.secondary">
+                Type a search query above and click Search to apply your filters
+              </Typography>
             </Box>
           )}
         </Box>
