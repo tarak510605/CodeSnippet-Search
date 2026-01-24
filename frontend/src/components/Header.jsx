@@ -23,7 +23,7 @@ import {
 } from '@mui/icons-material';
 import { useThemeMode, useFavorites } from '../context';
 
-function Header({ onShowFavorites, showingFavorites, isSearching, onGoHome }) {
+function Header({ onShowFavorites, showingFavorites }) {
   const { darkMode, toggleDarkMode } = useThemeMode();
   const { getFavoritesCount } = useFavorites();
   const favCount = getFavoritesCount();
@@ -77,15 +77,12 @@ function Header({ onShowFavorites, showingFavorites, isSearching, onGoHome }) {
 
         {/* Actions */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {(showingFavorites || isSearching) && (
+          {showingFavorites && (
             <Tooltip title="Back to Home">
               <IconButton 
                 size="small" 
                 sx={{ color: 'primary.main' }}
-                onClick={() => {
-                  onShowFavorites && onShowFavorites(false);
-                  onGoHome && onGoHome();
-                }}
+                onClick={() => onShowFavorites && onShowFavorites(false)}
               >
                 <HomeIcon />
               </IconButton>

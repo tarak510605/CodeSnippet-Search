@@ -139,18 +139,21 @@ function App() {
     return response;
   }, []);
 
+  /**
+   * Handle clearing search and going back to home
+   */
+  const handleClearSearch = () => {
+    setCurrentSearch(null);
+    setAiSuggestions(null);
+    setError(null);
+  };
+
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
       <Header 
         onShowFavorites={setShowFavorites} 
         showingFavorites={showFavorites}
-        isSearching={currentSearch !== null}
-        onGoHome={() => {
-          setCurrentSearch(null);
-          setShowFavorites(false);
-          setAiSuggestions(null);
-        }}
       />
 
       {/* Main Content */}
@@ -185,7 +188,12 @@ function App() {
 
         {/* Search Bar - Hide when showing favorites */}
         {!showFavorites && (
-          <SearchBar onSearch={handleSearch} loading={loading} />
+          <SearchBar 
+            onSearch={handleSearch} 
+            onClearSearch={handleClearSearch}
+            loading={loading} 
+            isSearching={currentSearch !== null}
+          />
         )}
 
         {/* Error Alert */}
@@ -202,12 +210,12 @@ function App() {
 
         {/* Favorites Section */}
         {showFavorites && (
-          <Box sx={{ mb: 4 }}>
+          <Box sx={{ mb: 4, minHeight: favorites.length === 0 ? 'calc(100vh - 230px)' : 'auto', display: 'flex', flexDirection: 'column' }}>
             <Typography variant="h5" sx={{ mb: 3, fontWeight: 600 }}>
               ❤️ My Favorites ({favorites.length})
             </Typography>
             {favorites.length === 0 ? (
-              <Box sx={{ textAlign: 'center', py: 8 }}>
+              <Box sx={{ textAlign: 'center', flexGrow: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
                 <Typography variant="h6" color="text.secondary" sx={{ mb: 2 }}>
                   No favorites yet
                 </Typography>

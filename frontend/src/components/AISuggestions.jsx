@@ -355,7 +355,7 @@ function AISuggestions({ suggestions, loading }) {
                   sx={{
                     p: 2,
                     borderRadius: 2,
-                    bgcolor: 'background.paper',
+                    bgcolor: 'background.default',
                     border: '1px solid',
                     borderColor: 'divider',
                   }}
@@ -372,9 +372,11 @@ function AISuggestions({ suggestions, loading }) {
                       sx={{
                         p: 2,
                         borderRadius: 1,
-                        bgcolor: 'grey.100',
+                        bgcolor: 'action.hover',
+                        color: 'text.primary',
                         fontSize: '0.8rem',
                         overflow: 'auto',
+                        fontFamily: 'monospace',
                       }}
                     >
                       {aiData.additionalSnippetSuggestion.pseudocode}

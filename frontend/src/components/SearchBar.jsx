@@ -56,7 +56,7 @@ const SORT_OPTIONS = [
   { value: 'recent', label: 'Most Recent' },
 ];
 
-function SearchBar({ onSearch, loading = false }) {
+function SearchBar({ onSearch, onClearSearch, loading = false, isSearching = false }) {
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
   
@@ -67,6 +67,12 @@ function SearchBar({ onSearch, loading = false }) {
     sortBy: 'score',
     includeAI: false,  // Disabled by default to avoid rate limit errors
   });
+
+  const handleClearSearch = () => {
+    setQuery('');
+    setFilters({ language: '', sortBy: 'score', includeAI: false });
+    onClearSearch && onClearSearch();
+  };
 
   const handleSearch = (e) => {
     e?.preventDefault();
@@ -168,6 +174,18 @@ function SearchBar({ onSearch, loading = false }) {
         >
           {loading ? 'Searching...' : 'Search'}
         </Button>
+
+        {isSearching && (
+          <Button
+            variant="outlined"
+            size="large"
+            onClick={handleClearSearch}
+            startIcon={<ClearIcon />}
+            sx={{ minWidth: 100, height: 56 }}
+          >
+            Clear
+          </Button>
+        )}
       </Box>
 
       {/* Filters Section - Always visible on desktop, collapsible on mobile */}

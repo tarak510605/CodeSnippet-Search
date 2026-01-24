@@ -18,6 +18,8 @@ import {
   Button,
   Snackbar,
   Alert,
+  Modal,
+  Paper,
 } from '@mui/material';
 import {
   Favorite as FavoriteIcon,
@@ -26,6 +28,8 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   OpenInNew as OpenInNewIcon,
+  Close as CloseIcon,
+  Fullscreen as FullscreenIcon,
 } from '@mui/icons-material';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -56,6 +60,7 @@ const PREVIEW_LINES = 12;
 
 function SnippetCard({ snippet, onRate }) {
   const [expanded, setExpanded] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [userRating, setUserRating] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const { isFavorite, toggleFavorite } = useFavorites();
@@ -229,11 +234,11 @@ function SnippetCard({ snippet, onRate }) {
           {needsExpand && (
             <Button
               size="small"
-              onClick={() => setExpanded(!expanded)}
-              endIcon={expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+              onClick={() => setModalOpen(true)}
+              endIcon={<FullscreenIcon />}
               sx={{ mt: 1, textTransform: 'none' }}
             >
-              {expanded ? 'Show less' : `Show all ${codeLines.length} lines`}
+              View all {codeLines.length} lines
             </Button>
           )}
         </CardContent>
@@ -282,6 +287,92 @@ function SnippetCard({ snippet, onRate }) {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* Full Code Modal */}
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        aria-labelledby="code-modal-title"
+      >
+        <Paper
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: { xs: '95%', sm: '90%', md: '80%' },
+            maxWidth: 1000,
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            borderRadius: 2,
+            overflow: 'hidden',
+            bgcolor: 'background.paper',
+          }}
+        >
+          {/* Modal Header */}
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              p: 2,
+              borderBottom: '1px solid',
+              borderColor: 'divider',
+              bgcolor: 'background.default',
+            }}
+          >
+            <Box>
+              <Typography id="code-modal-title" variant="h6" sx={{ fontWeight: 600 }}>
+                {title}
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                <Chip label={languageInfo.name} size="small" color="primary" variant="outlined" />
+                <Typography variant="body2" color="text.secondary">
+                  {codeLines.length} lines
+                </Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Tooltip title="Copy code">
+                <IconButton onClick={handleCopy} size="small">
+                  <CopyIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Close">
+                <IconButton onClick={() => setModalOpen(false)} size="small">
+                  <CloseIcon />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Box>
+
+          {/* Modal Code Content */}
+          <Box
+            sx={{
+              flexGrow: 1,
+              overflow: 'auto',
+              maxHeight: 'calc(90vh - 100px)',
+            }}
+          >
+            <SyntaxHighlighter
+              language={languageInfo.syntax}
+              style={oneDark}
+              customStyle={{
+                margin: 0,
+                borderRadius: 0,
+                fontSize: '0.85rem',
+                padding: '1.5rem',
+                minHeight: '100%',
+              }}
+              showLineNumbers
+              wrapLines
+            >
+              {code}
+            </SyntaxHighlighter>
+          </Box>
+        </Paper>
+      </Modal>
     </>
   );
 }
