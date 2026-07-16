@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "build": "echo 'No build step required for Vercel deployment'",
     "seed": "node src/scripts/seed.js",
     "embeddings": "node src/scripts/generateEmbeddings.js",
     "test": "NODE_OPTIONS='--experimental-vm-modules' jest --coverage"
