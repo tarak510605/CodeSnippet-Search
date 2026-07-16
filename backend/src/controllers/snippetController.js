@@ -4,8 +4,10 @@
  */
 
 import { Snippet } from '../models/index.js';
-import { generateAISuggestions } from '../services/aiService.js';
-import { asyncHandler, sendSuccess, sendPaginated, NotFoundError, BadRequestError } from '../utils/index.js';
+import { generateAISuggestions, generateCodeSnippet } from '../services/aiService.js';
+import { generateEmbedding } from '../services/embeddingService.js';
+import SearchLog from '../models/SearchLog.js';
+import { asyncHandler, sendSuccess, sendPaginated, NotFoundError, BadRequestError, ForbiddenError, UnauthorizedError } from '../utils/index.js';
 import { config } from '../config/index.js';
 
 /**
@@ -22,38 +24,61 @@ export const searchSnippets = asyncHandler(async (req, res) => {
     page = 1,
     limit = config.pagination.defaultLimit,
     sortBy = 'score',
-    includeAI = true
+    includeAI = true,
+    includeSemanticSearch = true
   } = req.body;
 
-  // Validate that query is provided
+  const startTime = Date.now();
+
   if (!query || query.trim().length === 0) {
     throw BadRequestError('Search query is required');
   }
 
-  // Sanitize pagination values
   const sanitizedPage = Math.max(1, parseInt(page) || 1);
   const sanitizedLimit = Math.min(
     Math.max(1, parseInt(limit) || config.pagination.defaultLimit),
     config.pagination.maxLimit
   );
 
-  // Perform MongoDB text search
+  const useSemanticSearch = includeSemanticSearch !== false;
+  let queryEmbedding = null;
+
+  if (useSemanticSearch) {
+    try {
+      queryEmbedding = await generateEmbedding(query.trim());
+    } catch (embedErr) {
+      console.warn('Query embedding failed, falling back to text-only search:', embedErr.message);
+    }
+  }
+
   const { results, pagination } = await Snippet.textSearch(query.trim(), {
     language,
     tags: tags ? (Array.isArray(tags) ? tags : [tags]) : null,
     minRating: parseFloat(minRating) || 0,
     page: sanitizedPage,
     limit: sanitizedLimit,
-    sortBy
+    sortBy,
+    queryEmbedding,
+    useSemanticSearch: useSemanticSearch && Boolean(queryEmbedding)
   });
 
-  // Generate AI suggestions if enabled and results exist
   let aiSuggestions = null;
   if (includeAI) {
     aiSuggestions = await generateAISuggestions(query, results);
   }
 
-  // Return combined results
+  const responseTimeMs = Date.now() - startTime;
+
+  SearchLog.create({
+    query: query.trim(),
+    language: language || null,
+    resultCount: pagination.totalCount,
+    usedAI: Boolean(includeAI),
+    usedSemanticSearch: useSemanticSearch && Boolean(queryEmbedding),
+    userId: req.user?.id || null,
+    responseTimeMs
+  }).catch((err) => console.warn('Failed to log search:', err.message));
+
   res.status(200).json({
     success: true,
     message: `Found ${pagination.totalCount} snippets`,
@@ -73,17 +98,89 @@ export const searchSnippets = asyncHandler(async (req, res) => {
 export const createSnippet = asyncHandler(async (req, res) => {
   const { title, language, tags, code, description, author } = req.body;
 
-  // Create the snippet
   const snippet = await Snippet.create({
     title,
     language: language.toLowerCase(),
     tags: tags || [],
     code,
     description,
-    author: author || 'anonymous'
+    author: req.user?.username || author || 'anonymous',
+    createdBy: req.user?.id || null
   });
 
   sendSuccess(res, snippet, 'Snippet created successfully', 201);
+
+  const embeddingText = `${snippet.title} ${snippet.description} ${(snippet.tags || []).join(' ')} ${snippet.code.substring(0, 1000)}`;
+  generateEmbedding(embeddingText)
+    .then(async (embedding) => {
+      await Snippet.findByIdAndUpdate(snippet._id, { embedding });
+    })
+    .catch((err) => {
+      console.warn(`Embedding generation failed for snippet ${snippet._id}:`, err.message);
+    });
+});
+
+/**
+ * @desc    Get snippets saved by the authenticated user
+ * @route   GET /api/snippets/mine
+ * @access  Private
+ */
+export const getMySnippets = asyncHandler(async (req, res) => {
+  if (!req.user?.id) {
+    throw UnauthorizedError('Authentication required');
+  }
+
+  const {
+    page = 1,
+    limit = config.pagination.defaultLimit,
+    language,
+    sortBy = 'recent'
+  } = req.query;
+
+  const query = {
+    isActive: true,
+    createdBy: req.user.id
+  };
+
+  if (language) {
+    query.language = language.toLowerCase();
+  }
+
+  let sort = { createdAt: -1 };
+  switch (sortBy) {
+    case 'rating':
+      sort = { 'ratings.average': -1 };
+      break;
+    case 'favorites':
+      sort = { favoritesCount: -1 };
+      break;
+    case 'recent':
+    default:
+      sort = { createdAt: -1 };
+  }
+
+  const sanitizedPage = Math.max(1, parseInt(page) || 1);
+  const sanitizedLimit = Math.min(
+    Math.max(1, parseInt(limit) || config.pagination.defaultLimit),
+    config.pagination.maxLimit
+  );
+  const skip = (sanitizedPage - 1) * sanitizedLimit;
+
+  const [snippets, totalCount] = await Promise.all([
+    Snippet.find(query).sort(sort).skip(skip).limit(sanitizedLimit).lean(),
+    Snippet.countDocuments(query)
+  ]);
+
+  const pagination = {
+    page: sanitizedPage,
+    limit: sanitizedLimit,
+    totalCount,
+    totalPages: Math.ceil(totalCount / sanitizedLimit),
+    hasNextPage: sanitizedPage * sanitizedLimit < totalCount,
+    hasPrevPage: sanitizedPage > 1
+  };
+
+  sendPaginated(res, snippets, pagination, 'Your library retrieved successfully');
 });
 
 /**
@@ -177,15 +274,20 @@ export const rateSnippet = asyncHandler(async (req, res) => {
     throw BadRequestError('Rating must be a number between 1 and 5');
   }
 
-  // Find snippet with ratings values
-  const snippet = await Snippet.findById(id).select('+ratings.values');
+  const snippet = await Snippet.findById(id).select('+ratings.values +ratings.ratedBy');
 
   if (!snippet) {
     throw NotFoundError('Snippet not found');
   }
 
-  // Add the rating
-  await snippet.addRating(ratingValue);
+  if (req.user?.id) {
+    const userObjectId = req.user.id;
+    if (snippet.ratings.ratedBy?.some((uid) => uid.toString() === userObjectId)) {
+      throw BadRequestError('You have already rated this snippet');
+    }
+  }
+
+  await snippet.addRating(ratingValue, req.user?.id || null);
 
   sendSuccess(res, {
     average: snippet.ratings.average,
@@ -200,7 +302,12 @@ export const rateSnippet = asyncHandler(async (req, res) => {
  */
 export const toggleFavorite = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { userId = `user_${Date.now()}` } = req.body; // In production, get from auth
+
+  if (!req.user?.id) {
+    throw UnauthorizedError('Authentication required');
+  }
+
+  const userId = req.user.id;
 
   // Find snippet with favoritedBy array
   const snippet = await Snippet.findById(id).select('+favoritedBy');
@@ -233,6 +340,14 @@ export const updateSnippet = asyncHandler(async (req, res) => {
     throw NotFoundError('Snippet not found');
   }
 
+  if (!req.user?.id) {
+    throw UnauthorizedError('Authentication required');
+  }
+
+  if (!snippet.createdBy || snippet.createdBy.toString() !== req.user.id) {
+    throw ForbiddenError('Not authorized to edit this snippet');
+  }
+
   // Update fields if provided
   if (title) snippet.title = title;
   if (language) snippet.language = language.toLowerCase();
@@ -259,7 +374,14 @@ export const deleteSnippet = asyncHandler(async (req, res) => {
     throw NotFoundError('Snippet not found');
   }
 
-  // Soft delete
+  if (!req.user?.id) {
+    throw UnauthorizedError('Authentication required');
+  }
+
+  if (!snippet.createdBy || snippet.createdBy.toString() !== req.user.id) {
+    throw ForbiddenError('Not authorized to edit this snippet');
+  }
+
   snippet.isActive = false;
   await snippet.save();
 
@@ -285,6 +407,50 @@ export const getPopularSnippets = asyncHandler(async (req, res) => {
  * @route   GET /api/snippets/languages
  * @access  Public
  */
+const SUPPORTED_LANGUAGES = [
+  'javascript', 'typescript', 'python', 'java', 'c', 'cpp', 'csharp',
+  'go', 'rust', 'ruby', 'php', 'swift', 'kotlin', 'scala', 'html',
+  'css', 'sql', 'bash', 'powershell', 'yaml', 'json', 'markdown', 'other'
+];
+
+/**
+ * @desc    Generate a code snippet with AI (not saved)
+ * @route   POST /api/snippets/generate
+ * @access  Public (optional auth)
+ */
+export const generateSnippet = asyncHandler(async (req, res) => {
+  const { description, language } = req.body;
+
+  if (!description || description.trim().length < 10 || description.trim().length > 500) {
+    throw BadRequestError('Description must be between 10 and 500 characters');
+  }
+
+  const lang = (language || 'javascript').toLowerCase();
+  if (!SUPPORTED_LANGUAGES.includes(lang)) {
+    throw BadRequestError(`Language must be one of: ${SUPPORTED_LANGUAGES.join(', ')}`);
+  }
+
+  const result = await generateCodeSnippet(description.trim(), lang);
+
+  if (!result.available) {
+    return res.status(503).json({
+      success: false,
+      message: result.message || 'Code generation is not available'
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      title: result.generated.title,
+      code: result.generated.code,
+      description: result.generated.description,
+      tags: result.generated.tags || [],
+      language: lang
+    }
+  });
+});
+
 export const getLanguages = asyncHandler(async (req, res) => {
   // Get distinct languages that have active snippets
   const languages = await Snippet.distinct('language', { isActive: true });

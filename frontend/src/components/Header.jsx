@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AppBar,
   Toolbar,
@@ -12,6 +13,8 @@ import {
   IconButton,
   Tooltip,
   Badge,
+  Button,
+  Avatar,
 } from '@mui/material';
 import {
   Code as CodeIcon,
@@ -20,18 +23,38 @@ import {
   LightMode as LightModeIcon,
   Favorite as FavoriteIcon,
   Home as HomeIcon,
+  MenuBook as LibraryIcon,
 } from '@mui/icons-material';
-import { useThemeMode, useFavorites } from '../context';
+import { useThemeMode, useFavorites, useAuth } from '../context';
 
-function Header({ onShowFavorites, showingFavorites }) {
+function Header({
+  onShowFavorites,
+  showingFavorites,
+  onShowLibrary,
+  showingLibrary,
+  libraryCount = 0,
+}) {
+  const navigate = useNavigate();
   const { darkMode, toggleDarkMode } = useThemeMode();
   const { getFavoritesCount } = useFavorites();
+  const { user, isAuthenticated, logout } = useAuth();
   const favCount = getFavoritesCount();
+  const inSpecialView = showingFavorites || showingLibrary;
+
+  const goHome = () => {
+    onShowFavorites?.(false);
+    onShowLibrary?.(false);
+    navigate('/');
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
     <AppBar position="sticky" color="default" elevation={0}>
       <Toolbar sx={{ px: { xs: 2, md: 4 } }}>
-        {/* Logo and Title */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box
             sx={{
@@ -59,7 +82,7 @@ function Header({ onShowFavorites, showingFavorites }) {
                 WebkitTextFillColor: 'transparent',
                 cursor: 'pointer',
               }}
-              onClick={() => onShowFavorites && onShowFavorites(false)}
+              onClick={goHome}
             >
               CodeSnippet Search
             </Typography>
@@ -72,41 +95,68 @@ function Header({ onShowFavorites, showingFavorites }) {
           </Box>
         </Box>
 
-        {/* Spacer */}
         <Box sx={{ flexGrow: 1 }} />
 
-        {/* Actions */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {showingFavorites && (
+          {isAuthenticated ? (
+            <>
+              <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, mr: 1 }}>
+                {user?.username}
+              </Typography>
+              <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: '0.9rem' }}>
+                {user?.username?.charAt(0).toUpperCase()}
+              </Avatar>
+              <Button variant="outlined" size="small" onClick={handleLogout} sx={{ ml: 1 }}>
+                Logout
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="outlined" size="small" onClick={() => navigate('/login')}>
+                Login
+              </Button>
+              <Button variant="contained" size="small" onClick={() => navigate('/register')}>
+                Sign Up
+              </Button>
+            </>
+          )}
+
+          {inSpecialView && (
             <Tooltip title="Back to Home">
-              <IconButton 
-                size="small" 
-                sx={{ color: 'primary.main' }}
-                onClick={() => onShowFavorites && onShowFavorites(false)}
-              >
+              <IconButton size="small" sx={{ color: 'primary.main' }} onClick={goHome}>
                 <HomeIcon />
               </IconButton>
             </Tooltip>
           )}
-          <Tooltip title={showingFavorites ? "Back to Search" : "View Favorites"}>
-            <IconButton 
-              size="small" 
-              sx={{ 
-                color: showingFavorites ? 'error.main' : 'text.secondary',
-              }}
-              onClick={() => onShowFavorites && onShowFavorites(!showingFavorites)}
+
+          {isAuthenticated && (
+            <Tooltip title={showingLibrary ? 'My Library' : 'View saved snippets'}>
+              <IconButton
+                size="small"
+                sx={{ color: showingLibrary ? 'primary.main' : 'text.secondary' }}
+                onClick={() => onShowLibrary?.(!showingLibrary)}
+              >
+                <Badge badgeContent={libraryCount} color="primary" max={99}>
+                  <LibraryIcon />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+          )}
+
+          <Tooltip title={showingFavorites ? 'Back to Search' : 'View Favorites'}>
+            <IconButton
+              size="small"
+              sx={{ color: showingFavorites ? 'error.main' : 'text.secondary' }}
+              onClick={() => onShowFavorites?.(!showingFavorites)}
             >
               <Badge badgeContent={favCount} color="error" max={99}>
                 <FavoriteIcon />
               </Badge>
             </IconButton>
           </Tooltip>
-          <Tooltip title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}>
-            <IconButton 
-              size="small" 
-              sx={{ color: 'text.secondary' }}
-              onClick={toggleDarkMode}
-            >
+
+          <Tooltip title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}>
+            <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={toggleDarkMode}>
               {darkMode ? <LightModeIcon /> : <DarkModeIcon />}
             </IconButton>
           </Tooltip>

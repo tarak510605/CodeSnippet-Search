@@ -1,1 +1,1 @@
-export { default as api, snippetApi } from './api';
+export { default as api, snippetApi, analyticsApi, authApi } from './api';

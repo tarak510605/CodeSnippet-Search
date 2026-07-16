@@ -61,7 +61,12 @@ export const searchValidator = [
   body('includeAI')
     .optional()
     .isBoolean()
-    .withMessage('includeAI must be a boolean')
+    .withMessage('includeAI must be a boolean'),
+
+  body('includeSemanticSearch')
+    .optional()
+    .isBoolean()
+    .withMessage('includeSemanticSearch must be a boolean')
 ];
 
 /**

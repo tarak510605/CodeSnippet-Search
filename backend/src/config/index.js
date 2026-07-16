@@ -18,6 +18,13 @@ export const config = {
   
   // AI API settings (Groq)
   groqApiKey: process.env.GROQ_API_KEY,
+
+  // Google Gemini (embeddings)
+  geminiApiKey: process.env.GEMINI_API_KEY,
+
+  // JWT settings
+  jwtSecret: process.env.JWT_SECRET,
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   
   // Pagination defaults
   pagination: {

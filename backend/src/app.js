@@ -5,10 +5,38 @@
 
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import routes from './routes/index.js';
 import { errorHandler, notFoundHandler } from './middleware/index.js';
 
 const app = express();
+
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { success: false, message: 'Too many requests. Please wait 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: {
+    success: false,
+    message: 'AI request limit reached. Please wait before making more AI-powered searches.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { success: false, message: 'Too many login attempts. Please wait 15 minutes.' },
+  standardHeaders: true,
+  legacyHeaders: false
+});
 
 // ============================================
 // MIDDLEWARE
@@ -38,6 +66,16 @@ if (process.env.NODE_ENV !== 'production') {
 // ============================================
 // ROUTES
 // ============================================
+
+const skipRateLimit = process.env.SKIP_RATE_LIMIT === 'true';
+
+if (!skipRateLimit) {
+  app.use('/api', generalLimiter);
+  app.use('/api/snippets/search', aiLimiter);
+  app.use('/api/snippets/generate', aiLimiter);
+  app.use('/api/auth/register', authLimiter);
+  app.use('/api/auth/login', authLimiter);
+}
 
 // API routes
 app.use('/api', routes);

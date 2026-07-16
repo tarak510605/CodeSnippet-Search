@@ -4,6 +4,7 @@
  */
 
 import mongoose from 'mongoose';
+import { cosineSimilarity } from '../services/embeddingService.js';
 
 const snippetSchema = new mongoose.Schema(
   {
@@ -76,6 +77,12 @@ const snippetSchema = new mongoose.Schema(
         type: [Number],
         default: [],
         select: false // Don't include in queries by default
+      },
+      // Track users who have rated (one rating per authenticated user)
+      ratedBy: {
+        type: [mongoose.Schema.Types.ObjectId],
+        default: [],
+        select: false
       }
     },
     
@@ -99,11 +106,24 @@ const snippetSchema = new mongoose.Schema(
       default: 'anonymous',
       trim: true
     },
+
+    // Owner of the snippet (authenticated user)
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
     
     // Whether the snippet is active/visible
     isActive: {
       type: Boolean,
       default: true
+    },
+
+    // Vector embedding for semantic search (never returned in API responses)
+    embedding: {
+      type: [Number],
+      select: false
     }
   },
   {
@@ -159,21 +179,62 @@ snippetSchema.index({ isActive: 1 });
  * Add a new rating and recalculate the average
  * @param {number} rating - Rating value (1-5)
  */
-snippetSchema.methods.addRating = async function(rating) {
-  // Validate rating
+snippetSchema.methods.addRating = async function(rating, userId = null) {
   if (rating < 1 || rating > 5) {
     throw new Error('Rating must be between 1 and 5');
   }
-  
-  // Add the rating to values array
-  this.ratings.values.push(rating);
-  
-  // Recalculate average
-  const total = this.ratings.values.reduce((sum, val) => sum + val, 0);
-  this.ratings.count = this.ratings.values.length;
-  this.ratings.average = Math.round((total / this.ratings.count) * 10) / 10;
-  
-  return this.save();
+
+  const pushStage = {
+    $set: {
+      'ratings.values': {
+        $concatArrays: [{ $ifNull: ['$ratings.values', []] }, [rating]]
+      }
+    }
+  };
+
+  const pipeline = [pushStage];
+
+  if (userId) {
+    pipeline.push({
+      $set: {
+        'ratings.ratedBy': {
+          $concatArrays: [{ $ifNull: ['$ratings.ratedBy', []] }, [userId]]
+        }
+      }
+    });
+  }
+
+  pipeline.push(
+    {
+      $set: {
+        'ratings.count': { $size: '$ratings.values' },
+        'ratings.average': {
+          $round: [
+            {
+              $divide: [
+                { $sum: '$ratings.values' },
+                { $max: [{ $size: '$ratings.values' }, 1] }
+              ]
+            },
+            1
+          ]
+        }
+      }
+    }
+  );
+
+  const updated = await this.constructor.findByIdAndUpdate(
+    this._id,
+    pipeline,
+    { new: true, select: '+ratings.values' }
+  );
+
+  if (!updated) {
+    throw new Error('Snippet not found');
+  }
+
+  this.ratings = updated.ratings;
+  return updated;
 };
 
 /**
@@ -218,7 +279,9 @@ snippetSchema.statics.textSearch = async function(query, options = {}) {
     minRating = 0,
     page = 1,
     limit = 10,
-    sortBy = 'score' // 'score', 'rating', 'favorites', 'recent'
+    sortBy = 'score', // 'score', 'rating', 'favorites', 'recent'
+    queryEmbedding = null,
+    useSemanticSearch = true
   } = options;
   
   // List of supported languages for detection
@@ -293,21 +356,51 @@ snippetSchema.statics.textSearch = async function(query, options = {}) {
         : { 'ratings.average': -1 };
   }
   
-  // Calculate pagination
-  const skip = (page - 1) * limit;
-  
-  // Execute the search query
   const projection = useTextScore ? { score: { $meta: 'textScore' } } : {};
-  
-  const [results, totalCount] = await Promise.all([
-    this.find(searchQuery, projection)
+  const candidateLimit = queryEmbedding && useSemanticSearch ? 50 : limit;
+  const skip = (page - 1) * limit;
+
+  const totalCount = await this.countDocuments(searchQuery);
+
+  let candidates = await this.find(searchQuery, projection)
+    .sort(sortOptions)
+    .limit(candidateLimit)
+    .lean();
+
+  if (queryEmbedding && useSemanticSearch && candidates.length > 0) {
+    const ids = candidates.map((c) => c._id);
+    const withEmbeddings = await this.find({ _id: { $in: ids } })
+      .select('+embedding')
+      .lean();
+
+    const embeddingMap = new Map(
+      withEmbeddings.map((doc) => [doc._id.toString(), doc.embedding])
+    );
+
+    const maxTextScore = Math.max(...candidates.map((c) => c.score || 0), 0.001);
+
+    candidates = candidates.map((doc) => {
+      const embedding = embeddingMap.get(doc._id.toString());
+      const textScoreNorm = (doc.score || 0) / maxTextScore;
+      const semanticScore = embedding?.length
+        ? cosineSimilarity(queryEmbedding, embedding)
+        : 0;
+      const finalScore = (textScoreNorm * 0.4) + (semanticScore * 0.6);
+      return { ...doc, finalScore };
+    });
+
+    candidates.sort((a, b) => (b.finalScore || 0) - (a.finalScore || 0));
+    candidates = candidates.slice(skip, skip + limit);
+  } else {
+    candidates = await this.find(searchQuery, projection)
       .sort(sortOptions)
       .skip(skip)
       .limit(limit)
-      .lean(),
-    this.countDocuments(searchQuery)
-  ]);
-  
+      .lean();
+  }
+
+  const results = candidates.map(({ embedding, finalScore, ...rest }) => rest);
+
   return {
     results,
     pagination: {

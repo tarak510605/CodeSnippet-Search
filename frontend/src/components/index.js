@@ -8,3 +8,5 @@ export { default as SearchBar } from './SearchBar';
 export { default as SnippetCard } from './SnippetCard';
 export { default as SnippetList } from './SnippetList';
 export { default as AISuggestions } from './AISuggestions';
+export { default as GeneratePanel } from './GeneratePanel';
+export { default as AnalyticsSection } from './AnalyticsSection';

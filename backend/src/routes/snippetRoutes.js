@@ -4,7 +4,7 @@
  */
 
 import { Router } from 'express';
-import { validate } from '../middleware/index.js';
+import { validate, verifyToken, optionalAuth } from '../middleware/index.js';
 import {
   searchSnippets,
   createSnippet,
@@ -15,7 +15,9 @@ import {
   updateSnippet,
   deleteSnippet,
   getPopularSnippets,
-  getLanguages
+  getLanguages,
+  generateSnippet,
+  getMySnippets
 } from '../controllers/index.js';
 import {
   searchValidator,
@@ -39,6 +41,12 @@ const router = Router();
  */
 router.post('/search', searchValidator, validate, searchSnippets);
 
+/**
+ * @route   POST /api/snippets/generate
+ * @desc    Generate a code snippet with AI (not saved)
+ */
+router.post('/generate', optionalAuth, generateSnippet);
+
 // ============================================
 // SPECIAL ROUTES (must come before /:id)
 // ============================================
@@ -55,6 +63,12 @@ router.get('/popular', getPopularSnippets);
  */
 router.get('/languages', getLanguages);
 
+/**
+ * @route   GET /api/snippets/mine
+ * @desc    Get snippets saved by the current user
+ */
+router.get('/mine', verifyToken, listQueryValidator, validate, getMySnippets);
+
 // ============================================
 // CRUD ROUTES
 // ============================================
@@ -69,7 +83,7 @@ router.get('/', listQueryValidator, validate, getAllSnippets);
  * @route   POST /api/snippets
  * @desc    Create a new snippet
  */
-router.post('/', createSnippetValidator, validate, createSnippet);
+router.post('/', optionalAuth, createSnippetValidator, validate, createSnippet);
 
 /**
  * @route   GET /api/snippets/:id
@@ -81,13 +95,13 @@ router.get('/:id', idParamValidator, validate, getSnippetById);
  * @route   PUT /api/snippets/:id
  * @desc    Update a snippet
  */
-router.put('/:id', updateSnippetValidator, validate, updateSnippet);
+router.put('/:id', verifyToken, updateSnippetValidator, validate, updateSnippet);
 
 /**
  * @route   DELETE /api/snippets/:id
  * @desc    Delete a snippet (soft delete)
  */
-router.delete('/:id', idParamValidator, validate, deleteSnippet);
+router.delete('/:id', verifyToken, idParamValidator, validate, deleteSnippet);
 
 // ============================================
 // ACTION ROUTES
@@ -97,12 +111,12 @@ router.delete('/:id', idParamValidator, validate, deleteSnippet);
  * @route   POST /api/snippets/:id/rate
  * @desc    Rate a snippet (1-5 stars)
  */
-router.post('/:id/rate', rateValidator, validate, rateSnippet);
+router.post('/:id/rate', optionalAuth, rateValidator, validate, rateSnippet);
 
 /**
  * @route   POST /api/snippets/:id/favorite
  * @desc    Toggle favorite status for a snippet
  */
-router.post('/:id/favorite', favoriteValidator, validate, toggleFavorite);
+router.post('/:id/favorite', verifyToken, favoriteValidator, validate, toggleFavorite);
 
 export default router;

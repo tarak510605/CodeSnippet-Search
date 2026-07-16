@@ -22,6 +22,8 @@ import {
   CircularProgress,
   useMediaQuery,
   useTheme,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -66,12 +68,13 @@ function SearchBar({ onSearch, onClearSearch, loading = false, isSearching = fal
   const [filters, setFilters] = useState({
     language: '',
     sortBy: 'score',
-    includeAI: false,  // Disabled by default to avoid rate limit errors
+    includeAI: false,
+    includeSemanticSearch: true,
   });
 
   const handleClearSearch = () => {
     setQuery('');
-    setFilters({ language: '', sortBy: 'score', includeAI: false });
+    setFilters({ language: '', sortBy: 'score', includeAI: false, includeSemanticSearch: true });
     onClearSearch && onClearSearch();
   };
 
@@ -238,6 +241,19 @@ function SearchBar({ onSearch, onClearSearch, loading = false, isSearching = fal
                 color={filters.includeAI ? 'primary' : 'default'}
                 variant={filters.includeAI ? 'filled' : 'outlined'}
                 sx={{ cursor: 'pointer' }}
+              />
+            </Tooltip>
+
+            <Tooltip title="Uses AI embeddings to understand meaning, not just keywords" arrow placement="top">
+              <FormControlLabel
+                control={
+                  <Switch
+                    size="small"
+                    checked={filters.includeSemanticSearch}
+                    onChange={(e) => handleFilterChange('includeSemanticSearch', e.target.checked)}
+                  />
+                }
+                label="Semantic Search"
               />
             </Tooltip>
           </Box>

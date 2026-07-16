@@ -63,6 +63,11 @@ export const snippetApi = {
     return response.data;
   },
 
+  getMyLibrary: async (params = {}) => {
+    const response = await api.get('/snippets/mine', { params });
+    return response.data;
+  },
+
   /**
    * Get a single snippet by ID
    * @param {string} id - Snippet ID
@@ -121,6 +126,33 @@ export const snippetApi = {
    */
   getLanguages: async () => {
     const response = await api.get('/snippets/languages');
+    return response.data;
+  },
+
+  generate: async (description, language) => {
+    const response = await api.post('/snippets/generate', { description, language });
+    return response.data;
+  },
+};
+
+export const analyticsApi = {
+  getSearches: async () => {
+    const response = await api.get('/analytics/searches');
+    return response.data;
+  },
+};
+
+export const authApi = {
+  register: async (username, email, password) => {
+    const response = await api.post('/auth/register', { username, email, password });
+    return response.data;
+  },
+  login: async (email, password) => {
+    const response = await api.post('/auth/login', { email, password });
+    return response.data;
+  },
+  me: async () => {
+    const response = await api.get('/auth/me');
     return response.data;
   },
 };

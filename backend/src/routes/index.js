@@ -5,6 +5,8 @@
 
 import { Router } from 'express';
 import snippetRoutes from './snippetRoutes.js';
+import authRoutes from './auth.js';
+import analyticsRoutes from './analytics.js';
 
 const router = Router();
 
@@ -18,6 +20,8 @@ router.get('/health', (req, res) => {
 });
 
 // Register route modules
+router.use('/auth', authRoutes);
+router.use('/analytics', analyticsRoutes);
 router.use('/snippets', snippetRoutes);
 
 export default router;

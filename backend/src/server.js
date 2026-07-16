@@ -18,6 +18,11 @@ process.on('uncaughtException', (err) => {
  */
 const startServer = async () => {
   try {
+    if (!process.env.JWT_SECRET) {
+      console.error('❌ JWT_SECRET is not defined. Set JWT_SECRET in your .env file and restart.');
+      process.exit(1);
+    }
+
     // Connect to MongoDB
     await connectDB();
 
